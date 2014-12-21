@@ -1,0 +1,64 @@
+---
+title: "Practical Machine Learning Project"
+author: "Chris Johnson"
+date: "Monday, December 15, 2014"
+output: html_document
+---
+
+First let's load the data and set a seed for reproducibility.
+
+```{r}
+library(caret)
+originalset<-read.csv("~/Data Scientist Specialization/Practical Machine Learning/pml-training.csv")
+problemset<-read.csv("~/Data Scientist Specialization/Practical Machine Learning/pml-testing.csv")
+set.seed(1234)
+```
+
+After reading in the trainset and test set, let's split into a trainset and testset.
+
+```{r}
+originalset$skewness_pitch_dumbbell<-as.numeric(as.character(originalset$skewness_pitch_dumbbell))
+inTrain<-createDataPartition(y=originalset$classe,p=0.6,list=FALSE)
+trainset<-originalset[inTrain,]
+testset<-originalset[-inTrain,]
+```
+
+Now let's look at the variables in the trainset to see what we might want to use for prediction.
+
+The first variable looks like an index. The next few are user names and timestamps, which we won't want to include in our model. It's also not immediately clear what new_window and num_window are so we should leave those out. The rest of the variables seem like good candidates for a model, except some variables only have values of #DIV/0 or blanks. So I'm going to go ahead and remove those from the analysis
+
+```{r}
+colstokeep<-vector()
+for(i in 1:ncol(trainset)) {
+    divcheck<-grep("DIV",trainset[,i])
+    if(length(divcheck)==0){colstokeep<-c(colstokeep,i)}
+}
+trainset<-trainset[,colstokeep]
+```                                                 
+
+I'm now going to remove any columns that have NA values too.
+
+```{r}
+colstokeep<-vector()
+for(i in 1:ncol(trainset)) {
+    NAcheck<-sum(is.na(trainset[,i]))==0
+    if(NAcheck){colstokeep<-c(colstokeep,i)}
+}
+trainset<-trainset[,colstokeep]
+```
+
+Let's try fitting a model now using a Random Forest.
+
+```{r}
+library(randomForest)
+fit<-randomForest(classe~.-X-user_name-raw_timestamp_part_1-raw_timestamp_part_2-cvtd_timestamp-new_window-num_window,data=trainset)
+confusionMatrix(predict(fit),trainset$classe)
+```
+
+The in sample error is very low, at less than 0.65%.
+
+```{r}
+confusionMatrix(predict(fit,newdata=testset),testset$classe)
+```
+
+The out of sample error can be estimated to be about 0.68%. It is probably somewhat higher though, since a Random Forest is a very complex model, that could have overfit the data.
